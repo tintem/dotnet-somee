@@ -1,0 +1,192 @@
+﻿Tạo project và cài package
+# tạo webapi project
+dotnet new webapi -n BookStoreApi
+cd BookStoreApi
+
+# cài EF Core (SQL Server) + tools (nếu dùng SQL Server)
+dotnet add package Microsoft.EntityFrameworkCore.SqlServer
+dotnet add package Microsoft.EntityFrameworkCore.Design
+dotnet tool install --global dotnet-ef   # nếu chưa cài dotnet-ef
+
+# nếu muốn dùng MySQL (Pomelo)
+# dotnet add package Pomelo.EntityFrameworkCore.MySql
+
+2) Tạo model (ví dụ Category, Book)
+
+Tạo thư mục Models và 2 file:
+namespace BookStoreApi.Models
+{
+    public class Category
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = default!;
+        public ICollection<Book>? Books { get; set; }
+    }
+}
+
+namespace BookStoreApi.Models
+{
+    public class Book
+    {
+        public int Id { get; set; }
+        public string Title { get; set; } = default!;
+        public decimal Price { get; set; }
+        public int CategoryId { get; set; }
+        public Category? Category { get; set; }
+    }
+}
+
+3) Tạo DbContext
+Data/AppDbContext.cs
+
+using Microsoft.EntityFrameworkCore;
+using BookStoreApi.Models;
+
+namespace BookStoreApi.Data
+{
+    public class AppDbContext : DbContext
+    {
+        public AppDbContext(DbContextOptions<AppDbContext> options)
+            : base(options) { }
+
+        public DbSet<Category> Categories => Set<Category>();
+        public DbSet<Book> Books => Set<Book>();
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            modelBuilder.Entity<Category>()
+                .HasMany(c => c.Books)
+                .WithOne(b => b.Category)
+                .HasForeignKey(b => b.CategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // seed data (tuỳ chọn)
+            modelBuilder.Entity<Category>().HasData(
+                new Category { Id = 1, Name = "Programming" },
+                new Category { Id = 2, Name = "Fiction" }
+            );
+            modelBuilder.Entity<Book>().HasData(
+                new Book { Id = 1, Title = "Clean Code", Price = 29.99m, CategoryId = 1 },
+                new Book { Id = 2, Title = "The Alchemist", Price = 12.50m, CategoryId = 2 }
+            );
+        }
+    }
+}
+
+Appsetting.json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=(localdb)\\mssqllocaldb;Database=BookStoreDb;Trusted_Connection=True;MultipleActiveResultSets=true", 
+    "DefaultConnection2": "Server=127.0.0.1;Port=3306;Database=bookstore;User=root;Password=your_password;"
+
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}
+
+5) Đăng ký DbContext trong Program.cs
+
+using Microsoft.EntityFrameworkCore;
+using BookStoreApi.Data;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add DbContext
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+//// Nếu dùng Pomelo/MySQL: thay UseSqlServer(...) bằng:
+//// options.UseMySql(connStr, ServerVersion.AutoDetect(connStr));
+
+// Add controllers (if you use controllers)
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var app = builder.Build();
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
+
+6) Tạo controller CRUD (ví dụ CategoryController, BookController)
+Controllers/CategoryController.cs
+
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using BookStoreApi.Data;
+using BookStoreApi.Models;
+
+[ApiController]
+[Route("api/[controller]")]
+public class CategoriesController : ControllerBase
+{
+    private readonly AppDbContext _db;
+    public CategoriesController(AppDbContext db) => _db = db;
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll() =>
+        Ok(await _db.Categories.Include(c => c.Books).ToListAsync());
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> Get(int id)
+    {
+        var c = await _db.Categories.Include(c => c.Books).FirstOrDefaultAsync(x => x.Id == id);
+        return c == null ? NotFound() : Ok(c);
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create(Category category)
+    {
+        _db.Categories.Add(category);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(Get), new { id = category.Id }, category);
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(int id, Category input)
+    {
+        if (id != input.Id) return BadRequest();
+        _db.Entry(input).State = EntityState.Modified;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var item = await _db.Categories.FindAsync(id);
+        if (item == null) return NotFound();
+        _db.Categories.Remove(item);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+}
+
+7) Tạo Migration & cập nhật DB
+# tạo migration đầu tiên
+dotnet ef migrations add InitialCreate
+
+# áp dụng migration lên DB
+dotnet ef database update
+
+
+8) Chạy và kiểm thử
+
+Chạy app:
+dotnet run
+Mở https://localhost:5001/swagger (hoặc URL console in ra) để test API CRUD.
+
