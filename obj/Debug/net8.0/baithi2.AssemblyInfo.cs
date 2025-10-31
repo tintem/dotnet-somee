@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("baithi2")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ebcacf5ced5a43ab3eefb85c8382b80c6119ea8e")]
 [assembly: System.Reflection.AssemblyProductAttribute("baithi2")]
 [assembly: System.Reflection.AssemblyTitleAttribute("baithi2")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
