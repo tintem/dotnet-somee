@@ -1,0 +1,45 @@
+name: Deploy ASP.NET Core to Somee
+
+on:
+  push:
+    branches:
+      - main  # chỉ chạy khi push lên nhánh main
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+
+    steps:
+      # 1. Lấy code về
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Cài .NET SDK
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x  # đổi tùy version bạn dùng
+
+      # 3. Restore packages
+      - name: Restore dependencies
+        run: dotnet restore
+
+      # 4. Build
+      - name: Build project
+        run: dotnet build --configuration Release --no-restore
+
+      # 5. Publish ra thư mục publish
+      - name: Publish project
+        run: dotnet publish -c Release -o ./publish
+
+      # 6. Deploy qua FTP
+      - name: Deploy to Somee via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          local-dir: ./publish
+          server-dir: /  # nếu web của bạn nằm ở thư mục con: /wwwroot/myapp
+          protocol: ftps
+          timeout: 120000
